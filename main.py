@@ -20,22 +20,22 @@ class DQN(nn.Module):
         self.conv1 = nn.Conv2d(3, 32, kernel_size=8, stride=4)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
-        # self.fc1 = nn.Linear(22528, 256)
-        # Added LSTM layers:
+
         self.lstm_hidden = (Variable(torch.rand(6, 1, 256)),
                             Variable(torch.rand(6, 1, 256)))
         self.lstm = nn.LSTM(22528, 256, 6)
+
         self.fc2 = nn.Linear(256, self.num_actions)
 
     def forward(self, x):
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
-        # x = F.relu(self.fc1(x.view(x.size(0), -1)))
-        # return self.fc2(x)
+
         y, self.lstm_hidden = self.lstm(x.view(1, 1, -1), self.lstm_hidden)
         self.lstm_hidden = (Variable(self.lstm_hidden[0].data),
                             Variable(self.lstm_hidden[1].data))
+
         return self.fc2(y.view(1, 256))
 
 
