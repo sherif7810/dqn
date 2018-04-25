@@ -1,7 +1,6 @@
 import gym
 
 import torch
-from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
@@ -13,6 +12,7 @@ env.render()
 
 class DQN(nn.Module):
     """A NN from state to actions."""
+
     def __init__(self, num_actions):
         super(DQN, self).__init__()
         self.num_actions = num_actions
@@ -21,8 +21,8 @@ class DQN(nn.Module):
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
 
-        self.lstm_hidden = (Variable(torch.rand(6, 1, 256)),
-                            Variable(torch.rand(6, 1, 256)))
+        self.lstm_hidden = (torch.rand(6, 1, 256),
+                            torch.rand(6, 1, 256))
         self.lstm = nn.LSTM(22528, 256, 6)
 
         self.fc2 = nn.Linear(256, self.num_actions)
@@ -33,8 +33,8 @@ class DQN(nn.Module):
         x = F.relu(self.conv3(x))
 
         y, self.lstm_hidden = self.lstm(x.view(1, 1, -1), self.lstm_hidden)
-        self.lstm_hidden = (Variable(self.lstm_hidden[0].data),
-                            Variable(self.lstm_hidden[1].data))
+        self.lstm_hidden = (self.lstm_hidden[0].data,
+                            self.lstm_hidden[1].data)
 
         return self.fc2(y.view(1, 256))
 
@@ -59,19 +59,19 @@ for episode in range(1, 201):
     done = False
     G, reward = 0, 0
 
-    state1 = Variable(torch.Tensor(env.reset()).view(3, 210, 160)).unsqueeze(0)
+    state1 = torch.Tensor(env.reset()).view(3, 210, 160).unsqueeze(0)
     while done is not True:
         action, Q1 = epsilon_greedy(state1)
         state2, reward, done, info = env.step(action)
 
-        state2 = Variable(torch.Tensor(state2).view(3, 210, 160)).unsqueeze(0)
+        state2 = torch.Tensor(state2).view(3, 210, 160).unsqueeze(0)
         Q_, index = model(state2).data.max(1)
         Q_list = [torch.Tensor([0.0]) for i in range(env.action_space.n)]
         Q_list[int(index)] = reward + gamma * Q_
-        Q_list = torch.cat(Q_list)
-        Q1 = Variable(Q1.data)
-        loss = criterion(Variable(Q_list, requires_grad=True),
-                         Q1)
+        Q_list = torch.cat(Q_list).view(1, -1)
+        Q_list.requires_grad_()
+        Q1 = Q1.detach()
+        loss = criterion(Q_list, Q1)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
