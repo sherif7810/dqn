@@ -10,6 +10,11 @@ env = gym.make('SpaceInvaders-v0')
 env.render()
 
 
+def wrap_state(state):
+    """It wraps state in a Tensor."""
+    return torch.tensor(state).view(3, 210, 160).unsqueeze(0).float()
+
+
 class DQN(nn.Module):
     """A NN from state to actions."""
 
@@ -59,14 +64,14 @@ for episode in range(1, 201):
     done = False
     G, reward = 0, 0
 
-    state1 = torch.Tensor(env.reset()).view(3, 210, 160).unsqueeze(0)
+    state1 = wrap_state(env.reset())
     while done is not True:
         action, Q1 = epsilon_greedy(state1)
         state2, reward, done, info = env.step(action)
 
-        state2 = torch.Tensor(state2).view(3, 210, 160).unsqueeze(0)
+        state2 = wrap_state(state2)
         Q_, index = model(state2).max(1)
-        Q_list = [torch.Tensor([0.0]) for i in range(env.action_space.n)]
+        Q_list = [torch.tensor([0.]) for i in range(env.action_space.n)]
         Q_list[int(index)] = reward + gamma * Q_
         Q_list = torch.cat(Q_list).view(1, -1)
         Q_list.requires_grad_()
