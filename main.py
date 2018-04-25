@@ -33,8 +33,8 @@ class DQN(nn.Module):
         x = F.relu(self.conv3(x))
 
         y, self.lstm_hidden = self.lstm(x.view(1, 1, -1), self.lstm_hidden)
-        self.lstm_hidden = (self.lstm_hidden[0].data,
-                            self.lstm_hidden[1].data)
+        self.lstm_hidden = (self.lstm_hidden[0].detach(),
+                            self.lstm_hidden[1].detach())
 
         return self.fc2(y.view(1, 256))
 
@@ -51,7 +51,7 @@ def epsilon_greedy(state):
     if torch.rand(1)[0] > epsilon:
         action = env.action_space.sample()
     else:
-        action = Q.data.max(1)[1]
+        action = Q.max(1)[1]
     return (action, Q)
 
 
@@ -65,7 +65,7 @@ for episode in range(1, 201):
         state2, reward, done, info = env.step(action)
 
         state2 = torch.Tensor(state2).view(3, 210, 160).unsqueeze(0)
-        Q_, index = model(state2).data.max(1)
+        Q_, index = model(state2).max(1)
         Q_list = [torch.Tensor([0.0]) for i in range(env.action_space.n)]
         Q_list[int(index)] = reward + gamma * Q_
         Q_list = torch.cat(Q_list).view(1, -1)
