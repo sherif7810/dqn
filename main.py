@@ -14,7 +14,7 @@ env.render()
 
 
 def wrap_state(state):
-    """It wraps state in a Tensor."""
+    """It wraps state in a tensor."""
     return torch.tensor(state).view(3, 210, 160).unsqueeze(0).float()
 
 
