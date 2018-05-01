@@ -70,13 +70,10 @@ for episode in range(1, 201):
         state2, reward, done, info = env.step(action)
 
         state2 = wrap_state(state2)
-        Q_, index = model(state2).max(1)
-        Q_list = [torch.tensor([0.]) for i in range(env.action_space.n)]
-        Q_list[int(index)] = reward + gamma * Q_
-        Q_list = torch.cat(Q_list).view(1, -1)
-        Q_list.requires_grad_()
-        Q1 = Q1.detach()
-        loss = criterion(Q_list, Q1)
+
+        Q2 = model(state2)
+        target = reward + gamma * Q2
+        loss = criterion(target, Q1.detach())
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
