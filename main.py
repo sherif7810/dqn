@@ -72,6 +72,8 @@ class DQNAgent():
         self.epsilon = epsilon
 
     def update(self):
+        """Update agent."""
+
         batch = random.sample(self.buffer, self.batch_size)
         state1, reward, state2 = ([], [], [])
         for state1_, reward_, state2_ in batch:
