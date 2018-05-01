@@ -1,3 +1,6 @@
+import random
+from collections import deque
+
 import gym
 
 import torch
@@ -26,63 +29,102 @@ class DQN(nn.Module):
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
 
-        self.lstm_hidden = (torch.rand(6, 1, 256),
-                            torch.rand(6, 1, 256))
-        self.lstm = nn.LSTM(22528, 256, 6)
+        no_lstm_layers = 6
+        self.lstm_hidden = (torch.rand(no_lstm_layers, 1, 256),
+                            torch.rand(no_lstm_layers, 1, 256))
+        self.lstm = nn.LSTM(22528, 256, no_lstm_layers)
 
         self.fc2 = nn.Linear(256, self.num_actions)
 
     def forward(self, x):
+        batch_size = x.size(0)
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
 
-        y, self.lstm_hidden = self.lstm(x.view(1, 1, -1), self.lstm_hidden)
+        y, self.lstm_hidden = self.lstm(x.view(batch_size, 1, -1),
+                                        self.lstm_hidden)
         self.lstm_hidden = (self.lstm_hidden[0].detach(),
                             self.lstm_hidden[1].detach())
 
-        return self.fc2(y.view(1, 256))
+        return self.fc2(y.view(batch_size, 256))
 
 
-alpha, gamma, epsilon = (0.65, 0.65, 0.875)
-model = DQN(env.action_space.n)
-criterion = nn.MSELoss()
-optimizer = optim.Adam(model.parameters(), lr=alpha)
+class DQNAgent():
+    """It uses DQN and experience replay."""
 
+    def __init__(self,
+                 num_actions,
+                 gamma, alpha,
+                 buffer_size, batch_size,
+                 epsilon):
+        self.dqn = DQN(num_actions)
+        self.num_actions = num_actions
 
-def epsilon_greedy(state):
-    action = 0
-    Q = model(state)
-    if torch.rand(1)[0] > epsilon:
-        action = env.action_space.sample()
-    else:
-        action = Q.max(1)[1]
-    return (action, Q)
+        self.criterion = nn.MSELoss()
+        self.gamma = torch.tensor(gamma)
+        self.optimizer = optim.Adam(self.dqn.parameters(), lr=alpha)
 
+        self.batch_size = batch_size
 
-for episode in range(1, 201):
-    done = False
-    G, reward = 0, 0
+        t = wrap_state(env.reset())
+        self.buffer = deque(buffer_size * [(t, 0., t)], buffer_size)
 
-    state1 = wrap_state(env.reset())
-    while done is not True:
-        action, Q1 = epsilon_greedy(state1)
-        state2, reward, done, info = env.step(action)
+        self.epsilon = epsilon
 
-        state2 = wrap_state(state2)
+    def update(self):
+        batch = random.sample(self.buffer, self.batch_size)
+        state1, reward, state2 = ([], [], [])
+        for state1_, reward_, state2_ in batch:
+            state1.append(state1_)
+            reward.append(reward_)
+            state2.append(state2_)
+        state1 = torch.cat(state1)
+        reward = torch.tensor(reward).view(-1, 1)
+        state2 = torch.cat(state2)
 
-        Q2 = model(state2)
-        target = reward + gamma * Q2
-        loss = criterion(target, Q1.detach())
-        optimizer.zero_grad()
+        target = reward + self.gamma * self.dqn(state2).max(1)[0].view(-1, 1)
+        target = torch.cat([target for _ in range(self.num_actions)], 1)
+        Q = self.dqn(state1)
+        loss = self.criterion(target, Q.detach())
         loss.backward()
-        optimizer.step()
+        self.optimizer.step()
 
-        state1 = state2
+    def epsilon_greedy(self, state):
+        action = 0
+        if torch.rand(1)[0] > epsilon:
+            action = env.action_space.sample()
+        else:
+            action = self.dqn(state).max(1)[1].item()
+        return action
 
-        G += reward
 
-        env.render()
+if __name__ == '__main__':
+    alpha, gamma, epsilon = (0.65, 0.65, 0.875)
 
-    if episode % 50 == 0:
-        print("Episode {}: Total reward = {}.".format(episode, G))
+    agent = DQNAgent(env.action_space.n,
+                     gamma, alpha,
+                     30, 5,
+                     epsilon)
+
+    for episode in range(1, 201):
+        done = False
+        G, reward = 0, 0
+
+        state1 = wrap_state(env.reset())
+        while done is not True:
+            action = agent.epsilon_greedy(state1)
+            state2, reward, done, info = env.step(action)
+
+            state2 = wrap_state(state2)
+
+            agent.buffer.append((state1, reward, state2))
+            agent.update()
+
+            state1 = state2
+
+            G += reward
+            env.render()
+
+        if episode % 50 == 0:
+            print("Episode {}: Total reward = {}.".format(episode, G))
