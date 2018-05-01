@@ -23,7 +23,6 @@ class DQN(nn.Module):
 
     def __init__(self, num_actions):
         super(DQN, self).__init__()
-        self.num_actions = num_actions
 
         self.conv1 = nn.Conv2d(3, 32, kernel_size=8, stride=4)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
@@ -34,7 +33,7 @@ class DQN(nn.Module):
                             torch.rand(no_lstm_layers, 1, 256))
         self.lstm = nn.LSTM(22528, 256, no_lstm_layers)
 
-        self.fc2 = nn.Linear(256, self.num_actions)
+        self.fc2 = nn.Linear(256, num_actions)
 
     def forward(self, x):
         batch_size = x.size(0)
