@@ -108,7 +108,7 @@ if __name__ == '__main__':
                      30, 5,
                      epsilon)
 
-    for episode in range(1, 201):
+    for episode in range(1, 101):
         done = False
         G, reward = 0, 0
 
@@ -127,5 +127,5 @@ if __name__ == '__main__':
             G += reward
             env.render()
 
-        if episode % 50 == 0:
+        if episode % 10 == 0:
             print("Episode {}: Total reward = {}.".format(episode, G))
