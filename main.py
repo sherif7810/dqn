@@ -85,7 +85,7 @@ class DQNAgent():
         state2 = torch.cat(state2)
 
         target = reward + self.gamma * self.dqn(state2).max(1)[0].view(-1, 1)
-        target = torch.cat([target for _ in range(self.num_actions)], 1)
+        target = target.repeat(1, self.num_actions)
         Q = self.dqn(state1).detach()
         loss = self.criterion(target, Q)
         loss.backward()
