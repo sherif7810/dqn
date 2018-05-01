@@ -86,8 +86,8 @@ class DQNAgent():
 
         target = reward + self.gamma * self.dqn(state2).max(1)[0].view(-1, 1)
         target = torch.cat([target for _ in range(self.num_actions)], 1)
-        Q = self.dqn(state1)
-        loss = self.criterion(target, Q.detach())
+        Q = self.dqn(state1).detach()
+        loss = self.criterion(target, Q)
         loss.backward()
         self.optimizer.step()
 
