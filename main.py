@@ -41,12 +41,12 @@ class DQN(nn.Module):
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
 
-        y, self.lstm_hidden = self.lstm(x.view(batch_size, 1, -1),
+        x, self.lstm_hidden = self.lstm(x.view(batch_size, 1, -1),
                                         self.lstm_hidden)
         self.lstm_hidden = (self.lstm_hidden[0].detach(),
                             self.lstm_hidden[1].detach())
 
-        return self.fc2(y.view(batch_size, 256))
+        return self.fc2(x.view(batch_size, 256))
 
 
 class DQNAgent():
