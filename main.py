@@ -67,7 +67,7 @@ class DQNAgent():
         self.batch_size = batch_size
 
         t = wrap_state(env.reset())
-        self.buffer = deque(buffer_size * [(t, 0., t)], buffer_size)
+        self.buffer = deque(buffer_size * [(t, 0, 0., t)], buffer_size)
 
         self.epsilon = epsilon
 
@@ -75,18 +75,19 @@ class DQNAgent():
         """Update agent."""
 
         batch = random.sample(self.buffer, self.batch_size)
-        state, reward, next_state = ([], [], [])
-        for state1_, reward_, state2_ in batch:
-            state.append(state1_)
+        state, action, reward, next_state = ([], [], [], [])
+        for state_, action_, reward_, next_state_ in batch:
+            state.append(state_)
+            action.append([action_])  # To give it the same dimension of dqn.
             reward.append(reward_)
-            next_state.append(state2_)
+            next_state.append(next_state_)
         state = torch.cat(state)
+        action = torch.tensor(action)
         reward = torch.tensor(reward).view(-1, 1)
         next_state = torch.cat(next_state)
 
         target = reward + self.gamma * self.dqn(next_state).max(1)[0].view(-1, 1)
-        target = target.repeat(1, self.num_actions)
-        Q = self.dqn(state).detach()
+        Q = self.dqn(state).gather(1, action).detach()
         loss = self.criterion(target, Q)
         loss.backward()
         self.optimizer.step()
@@ -96,7 +97,7 @@ class DQNAgent():
         if torch.rand(1)[0] > epsilon:
             action = env.action_space.sample()
         else:
-            action = torch.argmax(self.dqn(state), 1)
+            action = torch.argmax(self.dqn(state), 1).item()
         return action
 
 
@@ -112,17 +113,17 @@ if __name__ == '__main__':
         done = False
         G, reward = 0, 0
 
-        state1 = wrap_state(env.reset())
+        state = wrap_state(env.reset())
         while done is not True:
-            action = agent.epsilon_greedy(state1)
-            state2, reward, done, info = env.step(action)
+            action = agent.epsilon_greedy(state)
+            next_state, reward, done, info = env.step(action)
 
-            state2 = wrap_state(state2)
+            next_state = wrap_state(next_state)
 
-            agent.buffer.append((state1, reward, state2))
+            agent.buffer.append((state, action, reward, next_state))
             agent.update()
 
-            state1 = state2
+            state = next_state
 
             G += reward
             env.render()
