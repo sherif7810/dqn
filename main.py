@@ -75,18 +75,18 @@ class DQNAgent():
         """Update agent."""
 
         batch = random.sample(self.buffer, self.batch_size)
-        state1, reward, state2 = ([], [], [])
+        state, reward, next_state = ([], [], [])
         for state1_, reward_, state2_ in batch:
-            state1.append(state1_)
+            state.append(state1_)
             reward.append(reward_)
-            state2.append(state2_)
-        state1 = torch.cat(state1)
+            next_state.append(state2_)
+        state = torch.cat(state)
         reward = torch.tensor(reward).view(-1, 1)
-        state2 = torch.cat(state2)
+        next_state = torch.cat(next_state)
 
-        target = reward + self.gamma * self.dqn(state2).max(1)[0].view(-1, 1)
+        target = reward + self.gamma * self.dqn(next_state).max(1)[0].view(-1, 1)
         target = target.repeat(1, self.num_actions)
-        Q = self.dqn(state1).detach()
+        Q = self.dqn(state).detach()
         loss = self.criterion(target, Q)
         loss.backward()
         self.optimizer.step()
@@ -96,7 +96,7 @@ class DQNAgent():
         if torch.rand(1)[0] > epsilon:
             action = env.action_space.sample()
         else:
-            action = self.dqn(state).max(1)[1].item()
+            action = torch.argmax(self.dqn(state), 1)
         return action
 
 
