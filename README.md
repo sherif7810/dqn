@@ -1,5 +1,8 @@
 # My Implementation of Deep Q-Network
-It uses experience replay buffer.  
+The agent plays the atari game while improving its skills.  
+The agent stores states and actions in replay buffer then update its neural network by a patch sampled from the replay buffer.  
+
 It is written in Python and uses PyTorch.  
 
-I don't remember which references were used to make it.
+## References
+(DQN)[https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf].
