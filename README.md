@@ -5,4 +5,4 @@ The agent stores states and actions in replay buffer then update its neural netw
 It is written in Python and uses PyTorch.  
 
 ## References
-(DQN)[https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf].
+[DQN](https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf).
