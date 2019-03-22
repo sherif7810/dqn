@@ -28,10 +28,10 @@ class DQN(nn.Module):
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
 
-        no_lstm_layers = 6
-        self.lstm_hidden = (torch.rand(no_lstm_layers, 1, 256),
-                            torch.rand(no_lstm_layers, 1, 256))
-        self.lstm = nn.LSTM(22528, 256, no_lstm_layers)
+        self.no_lstm_layers = 6
+        self.lstm_hidden = (torch.zeros(self.no_lstm_layers, 1, 256),
+                            torch.zeros(self.no_lstm_layers, 1, 256))
+        self.lstm = nn.LSTM(22528, 256, self.no_lstm_layers)
 
         self.fc2 = nn.Linear(256, num_actions)
 
@@ -43,10 +43,11 @@ class DQN(nn.Module):
 
         x, self.lstm_hidden = self.lstm(x.view(batch_size, 1, -1),
                                         self.lstm_hidden)
-        self.lstm_hidden = (self.lstm_hidden[0].detach(),
-                            self.lstm_hidden[1].detach())
-
         return self.fc2(x.view(batch_size, 256))
+    
+    def reset_hidden(self):
+        self.lstm_hidden = (torch.zeros(self.no_lstm_layers, 1, 256),
+                            torch.zeros(self.no_lstm_layers, 1, 256))
 
 
 class DQNAgent():
@@ -91,6 +92,7 @@ class DQNAgent():
         loss = self.criterion(Q, target.detach())
         loss.backward()
         self.optimizer.step()
+        self.dqn.reset_hidden()
 
     def epsilon_greedy(self, state):
         action = 0
