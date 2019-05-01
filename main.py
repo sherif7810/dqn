@@ -21,8 +21,20 @@ def wrap_state(state):
 class DQN(torch.jit.ScriptModule):
     """A NN from state to actions."""
 
-    def __init__(self, num_actions):
+    def __init__(self, num_actions,
+                 gamma, alpha,
+                 buffer_size, batch_size,
+                 epsilon):
         super(DQN, self).__init__()
+
+        self.num_actions = num_actions
+        self.batch_size = batch_size
+
+        self.gamma = torch.tensor(gamma)
+        self.epsilon = epsilon
+
+        t = wrap_state(env.reset())
+        self.buffer = deque(buffer_size * [(t, 0, 0., t)], buffer_size)
 
         self.conv1 = nn.Conv2d(3, 32, kernel_size=8, stride=4)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
@@ -32,6 +44,9 @@ class DQN(torch.jit.ScriptModule):
         self.lstm = nn.LSTM(22528, 256, self.no_lstm_layers)
 
         self.fc2 = nn.Linear(256, num_actions)
+
+        self.criterion = nn.MSELoss()
+        self.optimizer = optim.Adam(self.parameters(), alpha)
 
     @torch.jit.script_method
     def forward(self, x: torch.Tensor):
@@ -46,29 +61,6 @@ class DQN(torch.jit.ScriptModule):
         x, lstm_hidden = self.lstm(x.view(batch_size, 1, -1),
                                    lstm_hidden)
         return self.fc2(x.view(batch_size, 256))
-
-
-class DQNAgent():
-    """It uses DQN and experience replay."""
-
-    def __init__(self,
-                 num_actions,
-                 gamma, alpha,
-                 buffer_size, batch_size,
-                 epsilon):
-        self.dqn = DQN(num_actions)
-        self.num_actions = num_actions
-
-        self.criterion = nn.MSELoss()
-        self.gamma = torch.tensor(gamma)
-        self.optimizer = optim.Adam(self.dqn.parameters(), lr=alpha)
-
-        self.batch_size = batch_size
-
-        t = wrap_state(env.reset())
-        self.buffer = deque(buffer_size * [(t, 0, 0., t)], buffer_size)
-
-        self.epsilon = epsilon
 
     def update(self):
         """Update agent."""
@@ -85,28 +77,28 @@ class DQNAgent():
         reward = torch.tensor(reward).view(-1, 1)
         next_state = torch.cat(next_state)
 
-        target = reward + self.gamma * self.dqn(next_state).max(1)[0].view(-1, 1)
-        Q = self.dqn(state).gather(1, action)
+        target = reward + self.gamma * self(next_state).max(1)[0].view(-1, 1)
+        Q = self(state).gather(1, action)
         loss = self.criterion(Q, target.detach())
         loss.backward()
         self.optimizer.step()
-
+    
     def epsilon_greedy(self, state):
         action = 0
         if torch.rand(1)[0] > epsilon:
             action = env.action_space.sample()
         else:
-            action = torch.argmax(self.dqn(state), 1).item()
+            action = torch.argmax(self(state), 1).item()
         return action
 
 
 if __name__ == '__main__':
     alpha, gamma, epsilon = (0.65, 0.65, 0.875)
 
-    agent = DQNAgent(env.action_space.n,
-                     gamma, alpha,
-                     30, 5,
-                     epsilon)
+    agent = DQN(env.action_space.n,
+                gamma, alpha,
+                30, 5,
+                epsilon)
 
     for episode in range(1, 101):
         done = False
