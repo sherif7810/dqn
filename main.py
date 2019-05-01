@@ -18,7 +18,7 @@ def wrap_state(state):
     return torch.tensor(state).view(3, 210, 160).unsqueeze(0).float()
 
 
-class DQN(nn.Module):
+class DQN(torch.jit.ScriptModule):
     """A NN from state to actions."""
 
     def __init__(self, num_actions):
@@ -28,26 +28,24 @@ class DQN(nn.Module):
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
 
-        self.no_lstm_layers = 6
-        self.lstm_hidden = (torch.zeros(self.no_lstm_layers, 1, 256),
-                            torch.zeros(self.no_lstm_layers, 1, 256))
+        self.no_lstm_layers = torch.jit.Attribute(6, int)
         self.lstm = nn.LSTM(22528, 256, self.no_lstm_layers)
 
         self.fc2 = nn.Linear(256, num_actions)
 
-    def forward(self, x):
+    @torch.jit.script_method
+    def forward(self, x: torch.Tensor):
+        lstm_hidden = (torch.zeros(self.no_lstm_layers, 1, 256),
+                       torch.zeros(self.no_lstm_layers, 1, 256))
+
         batch_size = x.size(0)
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
 
-        x, self.lstm_hidden = self.lstm(x.view(batch_size, 1, -1),
-                                        self.lstm_hidden)
+        x, lstm_hidden = self.lstm(x.view(batch_size, 1, -1),
+                                   lstm_hidden)
         return self.fc2(x.view(batch_size, 256))
-    
-    def reset_hidden(self):
-        self.lstm_hidden = (torch.zeros(self.no_lstm_layers, 1, 256),
-                            torch.zeros(self.no_lstm_layers, 1, 256))
 
 
 class DQNAgent():
@@ -92,7 +90,6 @@ class DQNAgent():
         loss = self.criterion(Q, target.detach())
         loss.backward()
         self.optimizer.step()
-        self.dqn.reset_hidden()
 
     def epsilon_greedy(self, state):
         action = 0
