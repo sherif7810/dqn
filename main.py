@@ -4,6 +4,7 @@ from collections import deque
 import gym
 
 import torch
+from torch import Tensor
 import torch.nn as nn
 import torch.optim as optim
 
@@ -12,10 +13,10 @@ env = gym.make('SpaceInvaders-v0')
 env.render()
 
 
-def wrap_state(state) -> torch.Tensor:
+def wrap_state(state) -> Tensor:
     """It wraps state in a `Tensor` then normalizes it to [0, 1]."""
     hw = state.shape[:2]
-    return torch.FloatTensor(state).view(3, hw[0], hw[1]).unsqueeze(0).float() / 255.0
+    return (torch.from_numpy(state).view(3, hw[0], hw[1]) / 255.0).unsqueeze(0)
 
 
 class DQN(torch.jit.ScriptModule):
@@ -30,13 +31,13 @@ class DQN(torch.jit.ScriptModule):
 
         self.batch_size = batch_size
 
-        self.gamma = torch.tensor(gamma)
+        self.gamma = torch.jit.Attribute(torch.tensor(gamma), Tensor)
         self.epsilon = torch.jit.Attribute(epsilon, float)
 
         t = wrap_state(env.reset())
         self.buffer = deque(buffer_size * [(t, 0, 0., t)], buffer_size)
 
-        action_space = torch.tensor(range(env.action_space.n)).float()
+        action_space = torch.arange(env.action_space.n, dtype=torch.float)
         self.action_distribution = torch.distributions.Categorical(action_space)
 
         conv1 = nn.Conv2d(3, 32, kernel_size=8, stride=4)
@@ -54,14 +55,14 @@ class DQN(torch.jit.ScriptModule):
 
         self.fc = nn.Sequential(
             nn.Linear(256, env.action_space.n),
-            nn.Sigmoid()
+            nn.Softmax(1)
         )
 
         self.criterion = nn.MSELoss()
         self.optimizer = optim.Adam(self.parameters(), alpha)
 
     @torch.jit.script_method
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: Tensor) -> Tensor:
         lstm_hidden = (torch.zeros(self.no_lstm_layers, 1, 256),
                        torch.zeros(self.no_lstm_layers, 1, 256))
 
@@ -74,6 +75,13 @@ class DQN(torch.jit.ScriptModule):
         x = x.view(batch_size, 256)
         x = self.fc(x)
         return x
+
+    @torch.jit.script_method
+    def _calc_loss(self, state: Tensor, action: Tensor, reward: Tensor, next_state: Tensor) -> Tensor:
+        target = reward + self.gamma * self(next_state).max(1)[0].view(-1, 1)
+        Q = self(state).gather(1, action)
+        loss = self.criterion(Q, target.detach())
+        return loss
 
     def update(self):
         """Update agent."""
@@ -90,9 +98,7 @@ class DQN(torch.jit.ScriptModule):
         reward = torch.tensor(reward).view(-1, 1)
         next_state = torch.cat(next_state)
 
-        target = reward + self.gamma * self(next_state).max(1)[0].view(-1, 1)
-        Q = self(state).gather(1, action)
-        loss = self.criterion(Q, target.detach())
+        loss = self._calc_loss(state, action, reward, next_state)
         loss.backward()
         self.optimizer.step()
 
